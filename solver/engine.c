@@ -482,6 +482,10 @@ int engine_run_job(engine_t* engine, job_t* job) {
     double app_min_default;
     double app_max_default;
     anbool solved = FALSE;
+    // --cpulimit is a budget for the whole job: onefield_run restarts its clock for every
+    // depth range and scale range below, so each run only gets what is left of it
+    float job_cpu_start = get_cpu_usage();
+    double job_cpulimit = bp->cpulimit;
 
     if (onefield_is_run_obsolete(bp, sp)) {
         goto finish;
@@ -583,6 +587,15 @@ int engine_run_job(engine_t* engine, job_t* job) {
             }
 
             il_free(indexlist);
+
+            if (job_cpulimit > 0.0) {
+                double left = job_cpulimit - (get_cpu_usage() - job_cpu_start);
+                if (left <= 0.0) {
+                    logmsg("Total CPU time limit reached!\n");
+                    goto finish;
+                }
+                bp->cpulimit = left;
+            }
 
             logverb("Running solver:\n");
             onefield_log_run_parameters(bp);

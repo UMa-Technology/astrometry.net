@@ -9,6 +9,21 @@ CircleCI: [![Build Status](https://img.shields.io/circleci/project/github/dstnds
 Automatic recognition of astronomical images; or standards-compliant
 astrometric metadata from data.
 
+## About this fork
+
+This is [UMa Technology](https://umainf.com)'s fork of
+[dstndstn/astrometry.net](https://github.com/dstndstn/astrometry.net), based on release 0.98.
+It speeds up source extraction (`image2xy` / `simplexy`) and the solver's time budget:
+
+- `dselip`: quickselect instead of a full sort to find the k-th element.
+- `simplexy`: the smoothing (`dsmooth2`) and median-background (`dmedsmooth`) stages run as
+  OpenMP loops, and the box medians select in place. **Build with OpenMP to get the
+  parallel code, e.g. `CFLAGS=-fopenmp LDFLAGS=-fopenmp make` with GCC; without it the pragmas
+  are ignored and the code runs single-threaded, with the same results.**
+- `simplexy`: the default `maxper` (peaks kept per blob) drops from 1000 to 100.
+- `dallpeaks`: pixels are grouped by object with a counting sort.
+- `astrometry-engine`: `--cpulimit` is a budget for the whole job rather than per index.
+
 Documentation: https://astrometrynet.readthedocs.io/en/latest/
 
 > If you have astronomical imaging of the sky with celestial coordinates

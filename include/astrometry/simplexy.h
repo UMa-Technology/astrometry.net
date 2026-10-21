@@ -11,7 +11,9 @@
 #define SIMPLEXY_DEFAULT_PLIM        8.0
 #define SIMPLEXY_DEFAULT_DLIM        1.0
 #define SIMPLEXY_DEFAULT_SADDLE      5.0
-#define SIMPLEXY_DEFAULT_MAXPER     1000
+// was 1000: a solver only needs a blob's brightest peaks, and deblending a frame-wide
+// blob costs peaks x area (20 s per 26 Mpix frame at 1000, 3.5 s at 100)
+#define SIMPLEXY_DEFAULT_MAXPER      100
 #define SIMPLEXY_DEFAULT_MAXSIZE    2000
 #define SIMPLEXY_DEFAULT_HALFBOX     100
 #define SIMPLEXY_DEFAULT_MAXNPEAKS 100000

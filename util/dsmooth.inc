@@ -15,11 +15,10 @@ void GLUE(dsmooth2, SUFFIX)(IMGTYPE *image,
 							float *smooth) {
 #undef GLUE
 #undef GLUE2
-	int i, j, npix, half, start, end, sample;
-	float neghalfinvvar, total, scale, dx, sum;
+	int i, npix, half;
+	float neghalfinvvar, total, scale, dx;
 	float* kernel1D;
     float* kernel_shifted;
-	float* smooth_temp;
 
 	// make the kernel
 	npix = 2 * ((int) ceilf(3. * sigma)) + 1;
@@ -39,50 +38,55 @@ void GLUE(dsmooth2, SUFFIX)(IMGTYPE *image,
 	for (i=0; i<npix; i++)
         kernel1D[i] *= scale;
 
-	smooth_temp = malloc(sizeof(float) * MAX(nx, ny));
-
     // Here's some trickery: we set "kernel_shifted" to be an array where:
     //   kernel_shifted[0] is the middle of the array,
     //   kernel_shifted[-half] is the left edge (ie the first sample),
     //   kernel_shifted[half] is the right edge (last sample)
 	kernel_shifted = kernel1D + half;
-
-	// convolve in x direction, dumping results into smooth_temp
-	for (j=0; j<ny; j++) {
-        IMGTYPE* imagerow = image + j*nx;
-        for (i=0; i<nx; i++) {
-            /*
-             The outer loops are over OUTPUT pixels;
-             the "sample" loop is over INPUT pixels.
-
-             We're summing over the input pixels that contribute to the value
-             of the output pixel.
-             */
-            start = MAX(0, i - half);
-            end = MIN(nx-1, i + half);
-            sum = 0.0;
-            for (sample=start; sample <= end; sample++)
-                sum += imagerow[sample] * kernel_shifted[sample - i];
-            smooth_temp[i] = sum;
-        }
-        memcpy(smooth + j*nx, smooth_temp, nx * sizeof(float));
-    }
-
-	// convolve in the y direction, dumping results into smooth
-	for (i=0; i<nx; i++) {
-        float* imagecol = smooth + i;
-        for (j=0; j<ny; j++) {
-            start = MAX(0, j - half);
-            end = MIN(ny-1, j + half);
-            sum = 0.0;
-            for (sample=start; sample<=end; sample++)
-                sum += imagecol[sample*nx] * kernel_shifted[sample - j];
-            smooth_temp[j] = sum;
-        }
-        for (j=0; j<ny; j++)
-            smooth[i + j*nx] = smooth_temp[j];
+	// rows of the x pass and columns of the y pass are independent; every thread keeps its own
+	// scratch line and the barrier between the two "omp for" loops orders the passes
+#pragma omp parallel
+	{
+		float* smooth_temp = malloc(sizeof(float) * MAX(nx, ny));
+		int i, j, start, end, sample;
+		float sum;
+		// convolve in x direction, dumping results into smooth_temp
+#pragma omp for
+		for (j=0; j<ny; j++) {
+			IMGTYPE* imagerow = image + j*nx;
+			for (i=0; i<nx; i++) {
+				/*
+				 The outer loops are over OUTPUT pixels;
+				 the "sample" loop is over INPUT pixels.
+				 We're summing over the input pixels that contribute to the value
+				 of the output pixel.
+				 */
+				start = MAX(0, i - half);
+				end = MIN(nx-1, i + half);
+				sum = 0.0;
+				for (sample=start; sample <= end; sample++)
+					sum += imagerow[sample] * kernel_shifted[sample - i];
+				smooth_temp[i] = sum;
+			}
+			memcpy(smooth + j*nx, smooth_temp, nx * sizeof(float));
+		}
+		// convolve in the y direction, dumping results into smooth
+#pragma omp for
+		for (i=0; i<nx; i++) {
+			float* imagecol = smooth + i;
+			for (j=0; j<ny; j++) {
+				start = MAX(0, j - half);
+				end = MIN(ny-1, j + half);
+				sum = 0.0;
+				for (sample=start; sample<=end; sample++)
+					sum += imagecol[sample*nx] * kernel_shifted[sample - j];
+				smooth_temp[j] = sum;
+			}
+			for (j=0; j<ny; j++)
+				smooth[i + j*nx] = smooth_temp[j];
+		}
+		FREEVEC(smooth_temp);
 	}
-	FREEVEC(smooth_temp);
 	FREEVEC(kernel1D);
 }
 

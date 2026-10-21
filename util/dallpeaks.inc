@@ -47,8 +47,29 @@ int GLUE(dallpeaks, SUFFIX)(IMGTYPE *image,
 	 == 1), etc.  The pixel coordinate is (x,y) = (indx[i] % nx,
 	 indx[i] / nx).
 	 */
-    indx = permuted_sort(object, sizeof(int), compare_ints_asc, NULL, nx*ny);
-
+	/* Group the pixels by object with a counting sort: the ids are dense (-1 = unlabelled,
+	   then 0..nobj-1) and only each group's bounding box is read below, so the order inside
+	   a group is irrelevant. The qsort of every pixel this replaces was ~0.5 s per 6 Mpix. */
+	{
+		int maxobj = -1, o;
+		int *count, *start;
+		for (k=0; k<(nx*ny); k++)
+			if (object[k] > maxobj)
+				maxobj = object[k];
+		count = calloc((size_t)maxobj + 2, sizeof(int));
+		start = malloc(((size_t)maxobj + 2) * sizeof(int));
+		for (k=0; k<(nx*ny); k++)
+			count[object[k] + 1]++;
+		for (o=0, k=0; o<maxobj+2; o++) {
+			start[o] = k;
+			k += count[o];
+		}
+		indx = malloc((size_t)nx * ny * sizeof(int));
+		for (k=0; k<(nx*ny); k++)
+			indx[start[object[k] + 1]++] = k;
+		free(count);
+		free(start);
+	}
 	// skip over the unlabelled pixels (object == -1)
 	for (k=0; k<(nx*ny) && object[indx[k]] == -1; k++);
 
